@@ -81,6 +81,7 @@
     execlp(exe, exe, __VA_ARGS__, (char*)NULL); \
   } while (0)
 
+static bool is_container = false;
 static FILE* kmsg_f = 0;
 
 static inline void cleanup_free(void* p) {
@@ -93,7 +94,8 @@ static inline void cleanup_close(const int* fd) {
 }
 
 static inline void cleanup_fclose(FILE** stream) {
-  fclose(*stream);
+  if (*stream)
+    fclose(*stream);
 }
 
 static inline void cleanup_va_end(va_list* args) {
@@ -172,15 +174,15 @@ static inline char* find_conf_key(const char* line, const char* key) {
   return NULL;
 }
 
-static inline int log_open_kmsg(void) {
+static inline FILE* log_open_kmsg(void) {
   kmsg_f = fopen("/dev/kmsg", "w");
   if (!kmsg_f) {
     print("open(\"/dev/kmsg\", \"w\"), %d = errno", errno);
-    return errno;
+    return kmsg_f;
   }
 
   setvbuf(kmsg_f, 0, _IOLBF, 0);
-  return 0;
+  return kmsg_f;
 }
 
 static inline long loop_ctl_get_free(void) {
@@ -265,14 +267,14 @@ static inline int recursiveRemove(int fd) {
   int dfd;
 
   if (!(dir = fdopendir(fd))) {
-    print("failed to open directory");
+    print("failed to open directory\n");
     goto done;
   }
 
   /* fdopendir() precludes us from continuing to use the input fd */
   dfd = dirfd(dir);
   if (fstat(dfd, &rb)) {
-    print("stat failed");
+    print("stat failed\n");
     goto done;
   }
 
@@ -283,9 +285,10 @@ static inline int recursiveRemove(int fd) {
     errno = 0;
     if (!(d = readdir(dir))) {
       if (errno) {
-        print("failed to read directory");
+        print("failed to read directory\n");
         goto done;
       }
+
       break; /* end of directory */
     }
 
@@ -299,7 +302,7 @@ static inline int recursiveRemove(int fd) {
       struct stat sb;
 
       if (fstatat(dfd, d->d_name, &sb, AT_SYMLINK_NOFOLLOW)) {
-        print("stat of %s failed", d->d_name);
+        print("stat of %s failed\n", d->d_name);
         continue;
       }
 
@@ -395,12 +398,12 @@ static inline int stat_oldroot_newroot(const char* newroot,
                                        struct stat* newroot_stat,
                                        struct stat* oldroot_stat) {
   if (stat("/", oldroot_stat) != 0) {
-    print("stat of %s failed", "/");
+    print("stat of %s failed\n", "/");
     return -1;
   }
 
   if (stat(newroot, newroot_stat) != 0) {
-    print("stat of %s failed", newroot);
+    print("stat of %s failed\n", newroot);
     return -1;
   }
 
@@ -500,6 +503,9 @@ static inline void start_udev(void) {
 
 static inline char* get_bootfs(const char* cmdline) {
   char* bootfs = find_conf_key(cmdline, "initoverlayfs.bootfs");
+  if (!bootfs)
+    return NULL;
+
   const char* token = strtok(bootfs, "=");
   autofree char* bootfs_tmp = 0;
   if (!strcmp(token, "LABEL")) {
@@ -565,6 +571,9 @@ static inline void mounts(const char* bootfs,
                           const char* bootfstype,
                           const char* fs,
                           const char* fstype) {
+  if (!bootfs)
+    return;
+
   if (mount(bootfs, "/boot", bootfstype, 0, NULL))
     print(
         "mount(\"%s\", \"/boot\", \"%s\", 0, NULL) "
@@ -610,15 +619,17 @@ static inline int wait_all(void) {
 }
 
 int main(void) {
-  if (mount_proc_sys_dev()) {
+  if (getenv("container"))
+    is_container = true;
+
+  if (!is_container && mount_proc_sys_dev())
     return errno;
-  }
 
   int ret = wait_all();
   if (ret)
     return ret;
 
-  log_open_kmsg();
+  autofclose FILE* kmsg_f = log_open_kmsg();
   start_udev();
   autofree char* bootfs = NULL;
   autofree char* bootfstype = NULL;
@@ -637,15 +648,15 @@ int main(void) {
   errno = 0;
 
   mounts(bootfs, bootfstype, fs, fstype);
-  if (switchroot("/initoverlayfs"))
-    print("switchroot(\"initoverlayfs\") %d (%s)\n", errno, strerror(errno));
+  if (switchroot("/initoverlayfs")) {
+    print("switchroot(\"/initoverlayfs\") %d (%s)\n", errno, strerror(errno));
+    return -1;
+  }
 
   exec_absolute_path("/sbin/init");
   exec_absolute_path("/etc/init");
   exec_absolute_path("/bin/init");
   exec_absolute_path("/bin/sh");
-
-  fclose(kmsg_f);
 
   return errno;
 }
