@@ -81,7 +81,6 @@
     execlp(exe, exe, __VA_ARGS__, (char*)NULL); \
   } while (0)
 
-static bool is_container = false;
 static FILE* kmsg_f = 0;
 
 static inline void cleanup_free(void* p) {
@@ -94,8 +93,10 @@ static inline void cleanup_close(const int* fd) {
 }
 
 static inline void cleanup_fclose(FILE** stream) {
-  if (*stream)
+  if (*stream) {
     fclose(*stream);
+    *stream = NULL;
+  }
 }
 
 static inline void cleanup_va_end(va_list* args) {
@@ -448,7 +449,7 @@ static inline int switchroot(const char* newroot) {
   return switchroot_move(newroot);
 }
 
-static inline int mount_proc_sys_dev(void) {
+static inline int mount_proc_sys_dev(pid_t* proc_pid) {
   pid_t pid = fork();
   if (!pid) { /* child */
     if (!mount("proc", "/proc", "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL))
@@ -461,6 +462,8 @@ static inline int mount_proc_sys_dev(void) {
     return errno;
   } else if (pid < 0) /* error */
     return errno;
+
+  *proc_pid = pid;
 
   pid = fork();
   if (!pid) { /* child */
@@ -607,7 +610,7 @@ static inline void mounts(const char* bootfs,
         bootfstype, errno, strerror(errno));
 }
 
-static inline int wait_all(void) {
+static inline int wait_all() {
   pid_t wpid;
   for (int status = 0; (wpid = wait(&status)) > 0;)
     if (status)
@@ -619,17 +622,14 @@ static inline int wait_all(void) {
 }
 
 int main(void) {
-  if (getenv("container"))
-    is_container = true;
-
-  if (!is_container && mount_proc_sys_dev())
-    return errno;
-
+  pid_t proc_pid = 0;
+  mount_proc_sys_dev(&proc_pid);
+  waitpid(proc_pid, 0, 0);
+  autofclose FILE* kmsg_f = log_open_kmsg();
   int ret = wait_all();
   if (ret)
     return ret;
 
-  autofclose FILE* kmsg_f = log_open_kmsg();
   start_udev();
   autofree char* bootfs = NULL;
   autofree char* bootfstype = NULL;
@@ -658,5 +658,6 @@ int main(void) {
   exec_absolute_path("/bin/init");
   exec_absolute_path("/bin/sh");
 
+  cleanup_fclose(&kmsg_f);
   return errno;
 }
