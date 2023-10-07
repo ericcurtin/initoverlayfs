@@ -449,7 +449,9 @@ static inline int switchroot(const char* newroot) {
   return switchroot_move(newroot);
 }
 
-static inline int mount_proc_sys_dev(pid_t* proc_pid) {
+static inline int mount_proc_sys_dev(pid_t* proc_pid,
+                                     pid_t* sys_pid,
+                                     pid_t* dev_pid) {
   pid_t pid = fork();
   if (!pid) { /* child */
     if (!mount("proc", "/proc", "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL))
@@ -479,6 +481,8 @@ static inline int mount_proc_sys_dev(pid_t* proc_pid) {
   } else if (pid < 0) /* error */
     return errno;
 
+  *sys_pid = pid;
+
   pid = fork();
   if (!pid) { /* child */
     if (!mount("devtmpfs", "/dev", "devtmpfs", MS_NOSUID | MS_STRICTATIME,
@@ -492,6 +496,8 @@ static inline int mount_proc_sys_dev(pid_t* proc_pid) {
     return errno;
   } else if (pid < 0) /* error */
     return errno;
+
+  *dev_pid = pid;
 
   return 0;
 }
@@ -610,34 +616,22 @@ static inline void mounts(const char* bootfs,
         bootfstype, errno, strerror(errno));
 }
 
-static inline int wait_all() {
-  pid_t wpid;
-  for (int status = 0; (wpid = wait(&status)) > 0;)
-    if (status)
-      return status;
-
-  errno = 0;
-
-  return 0;
-}
-
 int main(void) {
-  pid_t proc_pid = 0;
-  mount_proc_sys_dev(&proc_pid);
-  waitpid(proc_pid, 0, 0);
-  autofclose FILE* kmsg_f = log_open_kmsg();
-  int ret = wait_all();
-  if (ret)
-    return ret;
-
+  pid_t proc_pid = 0, sys_pid = 0, dev_pid = 0;
+  mount_proc_sys_dev(&proc_pid, &sys_pid, &dev_pid);
+  waitpid(dev_pid, 0, 0);
+  autofclose FILE* kmsg_f_scoped = log_open_kmsg();
+  kmsg_f = kmsg_f_scoped;
+  waitpid(sys_pid, 0, 0);
   start_udev();
   autofree char* bootfs = NULL;
   autofree char* bootfstype = NULL;
+  waitpid(proc_pid, 0, 0);
   get_cmdline_args(&bootfs, &bootfstype);
 
   autofree char* fs = NULL;
   autofree char* fstype = NULL;
-  ret = get_conf_args(&fs, &fstype);
+  const int ret = get_conf_args(&fs, &fstype);
   if (ret)
     return ret;
 
@@ -658,6 +652,5 @@ int main(void) {
   exec_absolute_path("/bin/init");
   exec_absolute_path("/bin/sh");
 
-  cleanup_fclose(&kmsg_f);
   return errno;
 }
