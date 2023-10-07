@@ -449,9 +449,7 @@ static inline int switchroot(const char* newroot) {
   return switchroot_move(newroot);
 }
 
-static inline int mount_proc_sys_dev(pid_t* proc_pid,
-                                     pid_t* sys_pid,
-                                     pid_t* dev_pid) {
+static inline int mount_proc_sys_dev(pid_t* proc_pid, pid_t* sys_pid) {
   pid_t pid = fork();
   if (!pid) { /* child */
     if (!mount("proc", "/proc", "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL))
@@ -483,21 +481,14 @@ static inline int mount_proc_sys_dev(pid_t* proc_pid,
 
   *sys_pid = pid;
 
-  pid = fork();
-  if (!pid) { /* child */
-    if (!mount("devtmpfs", "/dev", "devtmpfs", MS_NOSUID | MS_STRICTATIME,
-               "mode=0755,size=4m"))
-      exit(EXIT_SUCCESS);
-
+  if (!mount("devtmpfs", "/dev", "devtmpfs", MS_NOSUID | MS_STRICTATIME,
+             "mode=0755,size=4m")) {
     print(
         "mount(\"devtmpfs\", \"/dev\", \"devtmpfs\", MS_NOSUID | "
         "MS_STRICTATIME, \"mode=0755,size=4m\") %d (%s)\n",
         errno, strerror(errno));
     return errno;
-  } else if (pid < 0) /* error */
-    return errno;
-
-  *dev_pid = pid;
+  }
 
   return 0;
 }
@@ -617,9 +608,8 @@ static inline void mounts(const char* bootfs,
 }
 
 int main(void) {
-  pid_t proc_pid = 0, sys_pid = 0, dev_pid = 0;
-  mount_proc_sys_dev(&proc_pid, &sys_pid, &dev_pid);
-  waitpid(dev_pid, 0, 0);
+  pid_t proc_pid = 0, sys_pid = 0;
+  mount_proc_sys_dev(&proc_pid, &sys_pid);
   autofclose FILE* kmsg_f_scoped = log_open_kmsg();
   kmsg_f = kmsg_f_scoped;
   waitpid(sys_pid, 0, 0);
