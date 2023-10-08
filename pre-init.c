@@ -93,10 +93,8 @@ static inline void cleanup_close(const int* fd) {
 }
 
 static inline void cleanup_fclose(FILE** stream) {
-  if (*stream) {
+  if (*stream)
     fclose(*stream);
-    *stream = NULL;
-  }
 }
 
 static inline void cleanup_va_end(va_list* args) {
