@@ -51,13 +51,13 @@ static inline char* read_conf(const char* file, conf* conf) {
    * will fail unelss we provide a length.
    */
   while (getline(&line, &len, f) >= 0) {
-     if (!strcmp(line, "bootfs"))
+     if (!strncmp(line, "bootfs", sizeof("bootfs")))
        SWAP(conf->bootfs_scoped, line);
-     else if (!strcmp(line, "bootfstype"))
+     else if (!strncmp(line, "bootfstype", sizeof("bootfstype")))
        SWAP(conf->bootfstype_scoped, line);
-     else if (!strcmp(line, "fs"))
+     else if (!strncmp(line, "fs", sizeof("fs")))
        SWAP(conf->fs_scoped, line);
-     else if (!strcmp(line, "fstype"))
+     else if (!strncmp(line, "fstype", sizeof("fstype")))
        SWAP(conf->fstype_scoped, line);
   }
   
@@ -65,8 +65,9 @@ static inline char* read_conf(const char* file, conf* conf) {
 }
 
 int main(void) {
-  conf conf;
+  conf conf = { 0 };
   read_conf("a.txt", &conf);
+  printf("bootfs: '%s' bootfstype: '%s' fs: '%s' fstype: '%s' bootfs_scoped: '%s' bootfstype_scoped: '%s' fs_scoped: '%s' fstype_scoped: '%s'\n", conf.bootfs ?: "", conf.bootfstype ?: "", conf.fs ?: "", conf.fstype ?: "", conf.bootfs_scoped ?: "", conf.bootfstype_scoped ?: "", conf.fs_scoped ?: "", conf.fstype_scoped ?: "");
   return 0;
 }
 
