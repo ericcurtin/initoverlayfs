@@ -17,20 +17,20 @@
 #include <sys/wait.h>
 #include "bls-parser.h"
 
-#define fork_exec_absolute_no_wait(pid, exe, ...)        \
-  do {                                                   \
-    printd("fork_exec_absolute_no_wait(\"" exe "\")\n"); \
-    pid = fork();                                        \
-    if (pid == -1) {                                     \
-      print("fail fork_exec_absolute_no_wait\n");                     \
-      break;                                             \
-    } else if (pid > 0) {                                \
+#define fork_exec_absolute_no_wait(pid, exe, ...)            \
+  do {                                                       \
+    printd("fork_exec_absolute_no_wait(\"" exe "\")\n");     \
+    pid = fork();                                            \
+    if (pid == -1) {                                         \
+      print("fail fork_exec_absolute_no_wait\n");            \
+      break;                                                 \
+    } else if (pid > 0) {                                    \
       printd("forked %d fork_exec_absolute_no_wait\n", pid); \
-      break;                                             \
-    }                                                    \
-                                                         \
-    execl(exe, exe, __VA_ARGS__, (char*)NULL);           \
-    exit(errno);                                         \
+      break;                                                 \
+    }                                                        \
+                                                             \
+    execl(exe, exe, __VA_ARGS__, (char*)NULL);               \
+    exit(errno);                                             \
   } while (0)
 
 #define fork_exec_absolute(exe, ...)             \
@@ -51,7 +51,7 @@
 
 #define fork_exec_path(exe, ...)                \
   do {                                          \
-    printd("fork_exec_path(\"" exe "\")\n");            \
+    printd("fork_exec_path(\"" exe "\")\n");    \
     const pid_t pid = fork();                   \
     if (pid == -1) {                            \
       print("fail exec_path\n");                \
@@ -67,19 +67,21 @@
 
 static FILE* kmsg_f = 0;
 
-#define print(...) do { \
-  if (kmsg_f) { \
-    fprintf(kmsg_f, __VA_ARGS__); \
-    break; \
-  } \
- \
-  printf(__VA_ARGS__); \
-} while(0)
+#define print(...)                  \
+  do {                              \
+    if (kmsg_f) {                   \
+      fprintf(kmsg_f, __VA_ARGS__); \
+      break;                        \
+    }                               \
+                                    \
+    printf(__VA_ARGS__);            \
+  } while (0)
 
 #if 1
-#define printd(...) do { \
-  print(__VA_ARGS__); \
-} while(0)
+#define printd(...)     \
+  do {                  \
+    print(__VA_ARGS__); \
+  } while (0)
 #else
 #define printd(...)
 #endif
