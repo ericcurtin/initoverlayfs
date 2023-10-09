@@ -28,15 +28,16 @@
     b = temp;           \
   } while (0)
 
+typedef struct pair {
+  char* val;
+  char* scoped;
+} pair;
+
 typedef struct conf {
-  char* bootfs;
-  char* bootfstype;
-  char* fs;
-  char* fstype;
-  char* bootfs_scoped;
-  char* bootfstype_scoped;
-  char* fs_scoped;
-  char* fstype_scoped;
+  pair bootfs;
+  pair bootfstype;
+  pair fs;
+  pair fstype;
 } conf;
 
 typedef struct str {
@@ -45,10 +46,10 @@ typedef struct str {
 } str;
 
 static inline void cleanup_free_conf(conf* p) {
-  free(p->bootfs_scoped);
-  free(p->bootfstype_scoped);
-  free(p->fs_scoped);
-  free(p->fstype_scoped);
+  free(p->bootfs.scoped);
+  free(p->bootfstype.scoped);
+  free(p->fs.scoped);
+  free(p->fstype.scoped);
 }
 
 static inline void cleanup_free(void* p) {

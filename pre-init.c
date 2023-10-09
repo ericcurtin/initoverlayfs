@@ -17,38 +17,41 @@
 #include <sys/wait.h>
 #include "bls-parser.h"
 
-#define fork_exec_absolute_no_wait(pid, exe, ...) \
-  do {                                            \
-    printd("execl(\"%s\")\n", exe);               \
-    pid = fork();                                 \
-    if (pid == -1) {                              \
-      print("fail exec_absolute\n");              \
-      break;                                      \
-    } else if (pid > 0) {                         \
-      break;                                      \
-    }                                             \
-                                                  \
-    execl(exe, exe, __VA_ARGS__, (char*)NULL);    \
+#define fork_exec_absolute_no_wait(pid, exe, ...)        \
+  do {                                                   \
+    printd("fork_exec_absolute_no_wait(\"" exe "\")\n"); \
+    pid = fork();                                        \
+    if (pid == -1) {                                     \
+      print("fail fork_exec_absolute_no_wait\n");                     \
+      break;                                             \
+    } else if (pid > 0) {                                \
+      printd("forked %d fork_exec_absolute_no_wait\n", pid); \
+      break;                                             \
+    }                                                    \
+                                                         \
+    execl(exe, exe, __VA_ARGS__, (char*)NULL);           \
+    exit(errno);                                         \
   } while (0)
 
-#define fork_exec_absolute(exe, ...)           \
-  do {                                         \
-    printd("execl(\"%s\")\n", exe);            \
-    const pid_t pid = fork();                  \
-    if (pid == -1) {                           \
-      print("fail exec_absolute\n");           \
-      break;                                   \
-    } else if (pid > 0) {                      \
-      waitpid(pid, 0, 0);                      \
-      break;                                   \
-    }                                          \
-                                               \
-    execl(exe, exe, __VA_ARGS__, (char*)NULL); \
+#define fork_exec_absolute(exe, ...)             \
+  do {                                           \
+    printd("fork_exec_absolute(\"" exe "\")\n"); \
+    const pid_t pid = fork();                    \
+    if (pid == -1) {                             \
+      print("fail exec_absolute\n");             \
+      break;                                     \
+    } else if (pid > 0) {                        \
+      waitpid(pid, 0, 0);                        \
+      break;                                     \
+    }                                            \
+                                                 \
+    execl(exe, exe, __VA_ARGS__, (char*)NULL);   \
+    exit(errno);                                 \
   } while (0)
 
 #define fork_exec_path(exe, ...)                \
   do {                                          \
-    printd("execlp(\"%s\")\n", exe);            \
+    printd("fork_exec_path(\"" exe "\")\n");            \
     const pid_t pid = fork();                   \
     if (pid == -1) {                            \
       print("fail exec_path\n");                \
@@ -59,40 +62,38 @@
     }                                           \
                                                 \
     execlp(exe, exe, __VA_ARGS__, (char*)NULL); \
+    exit(errno);                                \
   } while (0)
 
 static FILE* kmsg_f = 0;
 
-static inline void print(const char* f, ...) {
-  autova_end va_list args;
-  va_start(args, f);
-  if (kmsg_f) {
-    vfprintf(kmsg_f, f, args);
-    return;
-  }
-
-  vprintf(f, args);
-}
+#define print(...) do { \
+  if (kmsg_f) { \
+    fprintf(kmsg_f, __VA_ARGS__); \
+    break; \
+  } \
+ \
+  printf(__VA_ARGS__); \
+} while(0)
 
 #if 1
-static inline void printd(const char* f, ...) {
-  autova_end va_list args;
-  va_start(args, f);
-  print(f, args);
-}
+#define printd(...) do { \
+  print(__VA_ARGS__); \
+} while(0)
 #else
 #define printd(...)
 #endif
 
 static inline void exec_absolute_path(const char* exe) {
-  printd("execl(\"%s\")\n", exe);
+  printd("exec_absolute_path(\"%s\")\n", exe);
   execl(exe, exe, (char*)NULL);
+  exit(errno);
 }
 
 static inline FILE* log_open_kmsg(void) {
   kmsg_f = fopen("/dev/kmsg", "w");
   if (!kmsg_f) {
-    print("open(\"/dev/kmsg\", \"w\"), %d = errno", errno);
+    print("open(\"/dev/kmsg\", \"w\"), %d = errno\n", errno);
     return kmsg_f;
   }
 
@@ -329,16 +330,18 @@ static inline int switchroot(const char* newroot) {
   /*  Don't try to unmount the old "/", there's no way to do it. */
   const char* umounts[] = {"/dev", "/proc", "/sys", "/run", NULL};
   struct stat newroot_stat, oldroot_stat, sb;
-
+  memset(&newroot_stat, 0, sizeof(newroot_stat));
+  memset(&oldroot_stat, 0, sizeof(oldroot_stat));
+  memset(&sb, 0, sizeof(sb));
   if (stat_oldroot_newroot(newroot, &newroot_stat, &oldroot_stat))
     return -1;
 
-  for (int i = 0; umounts[i] != NULL; ++i) {
-    autofree char* newmount;
+  for (int i = 0; umounts[i]; ++i) {
+    autofree char* newmount = 0;
     if (asprintf(&newmount, "%s%s", newroot, umounts[i]) < 0) {
       print(
           "asprintf(%p, \"%%s%%s\", \"%s\", \"%s\") MS_NODEV, NULL) %d (%s)\n",
-          newmount, newroot, umounts[i], errno, strerror(errno));
+          (void*)newmount, newroot, umounts[i], errno, strerror(errno));
       return -1;
     }
 
@@ -401,54 +404,54 @@ static inline void start_udev(void) {
 }
 
 static inline int convert_bootfs(conf* c) {
-  if (!c->bootfs)
+  if (!c->bootfs.val)
     return -4;
 
-  const char* token = strtok(c->bootfs, "=");
+  const char* token = strtok(c->bootfs.val, "=");
   autofree char* bootfs_tmp = 0;
   if (!strcmp(token, "LABEL")) {
     token = strtok(NULL, "=");
     if (asprintf(&bootfs_tmp, "/dev/disk/by-label/%s", token) < 0)
       return -1;
 
-    SWAP(c->bootfs_scoped, bootfs_tmp);
-    c->bootfs = c->bootfs_scoped;
+    SWAP(c->bootfs.scoped, bootfs_tmp);
+    c->bootfs.val = c->bootfs.scoped;
     return 0;
   } else if (!strcmp(token, "UUID")) {
     token = strtok(NULL, "=");
     if (asprintf(&bootfs_tmp, "/dev/disk/by-uuid/%s", token) < 0)
       return -2;
 
-    SWAP(c->bootfs_scoped, bootfs_tmp);
-    c->bootfs = c->bootfs_scoped;
+    SWAP(c->bootfs.scoped, bootfs_tmp);
+    c->bootfs.val = c->bootfs.scoped;
     return 0;
   }
 
-  printd("convert_bootfs(%p)\n", c);
+  printd("convert_bootfs(%p)\n", (void*)c);
 
   return -3;
 }
 
 static inline void mounts(const conf* c) {
-  if (!c->bootfs)
+  if (!c->bootfs.val)
     return;
 
-  if (mount(c->bootfs, "/boot", c->bootfstype, 0, NULL))
+  if (mount(c->bootfs.val, "/boot", c->bootfstype.val, 0, NULL))
     print(
         "mount(\"%s\", \"/boot\", \"%s\", 0, NULL) "
         "%d (%s)\n",
-        c->bootfs, c->bootfstype, errno, strerror(errno));
+        c->bootfs.val, c->bootfstype.val, errno, strerror(errno));
 
   autofree char* dev_loop = 0;
-  if (c->fs && losetup(&dev_loop, c->fs))
-    print("losetup(\"%s\", \"%s\") %d (%s)\n", dev_loop, c->fs, errno,
+  if (c->fs.val && losetup(&dev_loop, c->fs.val))
+    print("losetup(\"%s\", \"%s\") %d (%s)\n", dev_loop, c->fs.val, errno,
           strerror(errno));
 
-  if (mount(dev_loop, "/initrofs", c->fstype, MS_RDONLY, NULL))
+  if (mount(dev_loop, "/initrofs", c->fstype.val, MS_RDONLY, NULL))
     print(
         "mount(\"%s\", \"/initrofs\", \"%s\", MS_RDONLY, NULL) "
         "%d (%s)\n",
-        dev_loop, c->fstype, errno, strerror(errno));
+        dev_loop, c->fstype.val, errno, strerror(errno));
 
   if (mount("overlay", "/initoverlayfs", "overlay", 0,
             "redirect_dir=on,lowerdir=/initrofs,upperdir=/overlay/"
@@ -459,31 +462,26 @@ static inline void mounts(const conf* c) {
         "upper,workdir=/overlay/work\") %d (%s)\n",
         errno, strerror(errno));
 
-  if (mount("/boot", "/initoverlayfs/boot", c->bootfstype, MS_MOVE, NULL))
+  if (mount("/boot", "/initoverlayfs/boot", c->bootfstype.val, MS_MOVE, NULL))
     print(
         "mount(\"/boot\", \"/initoverlayfs/boot\", \"%s\", MS_MOVE, NULL) "
         "%d (%s)\n",
-        c->bootfstype, errno, strerror(errno));
+        c->bootfstype.val, errno, strerror(errno));
 }
 
 int main(void) {
+  errno = 0;
   mount_proc_sys_dev();
   autofclose FILE* kmsg_f_scoped = log_open_kmsg();
   kmsg_f = kmsg_f_scoped;
   start_udev();
-  autofree_conf conf conf = {.bootfs = 0,
-                             .bootfstype = 0,
-                             .fs = 0,
-                             .fstype = 0,
-                             .bootfs_scoped = 0,
-                             .bootfstype_scoped = 0,
-                             .fs_scoped = 0,
-                             .fstype_scoped = 0};
+  autofree_conf conf conf = {
+      .bootfs = {0, 0}, .bootfstype = {0, 0}, .fs = {0, 0}, .fstype = {0, 0}};
   read_conf("/etc/initoverlayfs.conf", &conf);
   convert_bootfs(&conf);
-  pid_t pid;
+  pid_t pid = 0;
   fork_exec_absolute_no_wait(pid, "/usr/sbin/modprobe", "loop");
-  fork_exec_path("udevadm", "wait", conf.bootfs);
+  fork_exec_path("udevadm", "wait", conf.bootfs.val);
   waitpid(pid, 0, 0);
   errno = 0;
 
