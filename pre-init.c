@@ -33,36 +33,38 @@
     exit(errno);                                             \
   } while (0)
 
-#define fork_exec_absolute(exe, ...)             \
+#define fork_exec_absolute(exe, ...)                 \
+  do {                                               \
+    printd("fork_exec_absolute(\"" exe "\")\n");     \
+    const pid_t pid = fork();                        \
+    if (pid == -1) {                                 \
+      print("fail exec_absolute\n");                 \
+      break;                                         \
+    } else if (pid > 0) {                            \
+      printd("forked %d fork_exec_absolute\n", pid); \
+      waitpid(pid, 0, 0);                            \
+      break;                                         \
+    }                                                \
+                                                     \
+    execl(exe, exe, __VA_ARGS__, (char*)NULL);       \
+    exit(errno);                                     \
+  } while (0)
+
+#define fork_exec_path(exe, ...)                 \
   do {                                           \
-    printd("fork_exec_absolute(\"" exe "\")\n"); \
+    printd("fork_exec_path(\"" exe "\")\n");     \
     const pid_t pid = fork();                    \
     if (pid == -1) {                             \
-      print("fail exec_absolute\n");             \
+      print("fail exec_path\n");                 \
       break;                                     \
     } else if (pid > 0) {                        \
+      printd("forked %d fork_exec_path\n", pid); \
       waitpid(pid, 0, 0);                        \
       break;                                     \
     }                                            \
                                                  \
-    execl(exe, exe, __VA_ARGS__, (char*)NULL);   \
+    execlp(exe, exe, __VA_ARGS__, (char*)NULL);  \
     exit(errno);                                 \
-  } while (0)
-
-#define fork_exec_path(exe, ...)                \
-  do {                                          \
-    printd("fork_exec_path(\"" exe "\")\n");    \
-    const pid_t pid = fork();                   \
-    if (pid == -1) {                            \
-      print("fail exec_path\n");                \
-      break;                                    \
-    } else if (pid > 0) {                       \
-      waitpid(pid, 0, 0);                       \
-      break;                                    \
-    }                                           \
-                                                \
-    execlp(exe, exe, __VA_ARGS__, (char*)NULL); \
-    exit(errno);                                \
   } while (0)
 
 static FILE* kmsg_f = 0;
