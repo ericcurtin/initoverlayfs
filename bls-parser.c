@@ -48,7 +48,7 @@ typedef struct conf {
 static inline char* read_conf(const char* file, conf* conf) {
   autofclose FILE* f = fopen(file, "r");
   autofree char* line = NULL;
-  size_t len;
+  size_t len_alloc = 0, len;
 
   if (!f)
     return NULL;
@@ -56,13 +56,16 @@ static inline char* read_conf(const char* file, conf* conf) {
   /* Note that /proc/cmdline will not end in a newline, so getline
    * will fail unelss we provide a length.
    */
-  while (getline(&line, &len, f) >= 0) {
+  while ((len = getline(&line, &len_alloc, f)) >= 0) {
      if (isspace(line[BOOTFS_LEN]) && !strncmp(line, "bootfs", BOOTFS_LEN)) {
        int i;
        for (i = BOOTFS_LEN; isspace(line[i]); ++i);
        conf->bootfs = line + i;
 
-       for (i = len; isspace(i; --i)
+       for (i = len; isspace(line[i]); --i);
+       line[i - 1] = 0;
+
+       printf("%d %d '%s'\n", i, len, line);
        SWAP(conf->bootfs_scoped, line);
      }
      else if (!strncmp(line, "bootfstype", BOOTFSTYPE_LEN))
