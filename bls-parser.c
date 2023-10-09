@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <ctype.h>
 
 #define autofree __attribute__((cleanup(cleanup_free)))
 #define autoclose __attribute__((cleanup(cleanup_close)))
@@ -39,6 +40,11 @@ typedef struct conf {
   char* fstype_scoped;
 } conf;
 
+#define BOOTFS_LEN sizeof("bootfs") - 1
+#define BOOTFSTYPE_LEN sizeof("bootfstype") - 1
+#define FS_LEN sizeof("fs") - 1
+#define FSTYPE_LEN sizeof("fstype") - 1
+
 static inline char* read_conf(const char* file, conf* conf) {
   autofclose FILE* f = fopen(file, "r");
   autofree char* line = NULL;
@@ -51,13 +57,19 @@ static inline char* read_conf(const char* file, conf* conf) {
    * will fail unelss we provide a length.
    */
   while (getline(&line, &len, f) >= 0) {
-     if (!strncmp(line, "bootfs", sizeof("bootfs")))
+     if (isspace(line[BOOTFS_LEN]) && !strncmp(line, "bootfs", BOOTFS_LEN)) {
+       int i;
+       for (i = BOOTFS_LEN; isspace(line[i]); ++i);
+       conf->bootfs = line + i;
+
+       for (i = len; isspace(i; --i)
        SWAP(conf->bootfs_scoped, line);
-     else if (!strncmp(line, "bootfstype", sizeof("bootfstype")))
+     }
+     else if (!strncmp(line, "bootfstype", BOOTFSTYPE_LEN))
        SWAP(conf->bootfstype_scoped, line);
-     else if (!strncmp(line, "fs", sizeof("fs")))
+     else if (!strncmp(line, "fs", FS_LEN))
        SWAP(conf->fs_scoped, line);
-     else if (!strncmp(line, "fstype", sizeof("fstype")))
+     else if (!strncmp(line, "fstype", FSTYPE_LEN))
        SWAP(conf->fstype_scoped, line);
   }
   
