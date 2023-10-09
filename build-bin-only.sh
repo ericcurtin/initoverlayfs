@@ -2,8 +2,8 @@
 
 set -ex
 
-clang++ -o a -O3 -pedantic -Wall -Wextra -Werror -Wno-language-extension-token -Wno-deprecated -std=c++20 pre-init.c &
-g++ -o b -O0 -ggdb -pedantic -Wall -Wextra -Werror -Wno-language-extension-token -std=c++20 pre-init.c &
+clang++ -o a -O3 -pedantic -Wall -Wextra -Werror -Wno-write-strings -Wno-language-extension-token -Wno-deprecated -std=c++20 pre-init.c &
+g++ -o b -O0 -ggdb -pedantic -Wall -Wextra -Werror -Wno-write-strings -Wno-language-extension-token -std=c++20 pre-init.c &
 clang -o c -O3 -pedantic -Wall -Wextra -Werror -Wno-language-extension-token pre-init.c &
 
 if [ -e /usr/lib/rpm/redhat/redhat-hardened-cc1 ]; then

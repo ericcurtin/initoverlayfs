@@ -1,7 +1,4 @@
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
-
+#include "pre-init.h"
 #include <assert.h>
 #include <dirent.h>
 #include <err.h>
@@ -9,7 +6,6 @@
 #include <fcntl.h>
 #include <linux/loop.h>
 #include <linux/magic.h>
-#include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,23 +15,7 @@
 #include <sys/syscall.h>
 #include <sys/vfs.h>
 #include <sys/wait.h>
-#include <unistd.h>
-
-#define autofree __attribute__((cleanup(cleanup_free)))
-#define autoclose __attribute__((cleanup(cleanup_close)))
-#define autofclose __attribute__((cleanup(cleanup_fclose)))
-#define autova_end __attribute__((cleanup(cleanup_va_end)))
-
-#ifdef __cplusplus
-#define typeof decltype
-#endif
-
-#define SWAP(a, b)      \
-  do {                  \
-    typeof(a) temp = a; \
-    a = b;              \
-    b = temp;           \
-  } while (0)
+#include "bls-parser.h"
 
 #define fork_exec_absolute_no_wait(pid, exe, ...) \
   do {                                            \
@@ -83,24 +63,6 @@
 
 static FILE* kmsg_f = 0;
 
-static inline void cleanup_free(void* p) {
-  free(*(void**)p);
-}
-
-static inline void cleanup_close(const int* fd) {
-  if (*fd > 2)  // Greater than 2 to protect stdin, stdout and stderr
-    close(*fd);
-}
-
-static inline void cleanup_fclose(FILE** stream) {
-  if (*stream)
-    fclose(*stream);
-}
-
-static inline void cleanup_va_end(va_list* args) {
-  va_end(*args);
-}
-
 static inline void print(const char* f, ...) {
   autova_end va_list args;
   va_start(args, f);
@@ -125,52 +87,6 @@ static inline void printd(const char* f, ...) {
 static inline void exec_absolute_path(const char* exe) {
   printd("execl(\"%s\")\n", exe);
   execl(exe, exe, (char*)NULL);
-}
-
-static inline char* read_conf(const char* file) {
-  autofclose FILE* f = fopen(file, "r");
-  char* cmdline = NULL;
-  size_t len;
-
-  if (!f)
-    return NULL;
-
-  /* Note that /proc/cmdline will not end in a newline, so getline
-   * will fail unelss we provide a length.
-   */
-  if (getline(&cmdline, &len, f) < 0)
-    return NULL;
-
-  /* ... but the length will be the size of the malloc buffer, not
-   * strlen().  Fix that.
-   */
-  len = strlen(cmdline);
-
-  if (cmdline[len - 1] == '\n')
-    cmdline[len - 1] = '\0';
-
-  return cmdline;
-}
-
-static inline char* find_conf_key(const char* line, const char* key) {
-  const size_t key_len = strlen(key);
-  for (const char* iter = line; iter;) {
-    const char* next = strchr(iter, ' ');
-    if (strncmp(iter, key, key_len) == 0 && iter[key_len] == '=') {
-      const char* start = iter + key_len + 1;
-      if (next)
-        return strndup(start, next - start);
-
-      return strdup(start);
-    }
-
-    if (next)
-      next += strspn(next, " ");
-
-    iter = next;
-  }
-
-  return NULL;
 }
 
 static inline FILE* log_open_kmsg(void) {
@@ -225,7 +141,7 @@ static inline int loop_configure(const long devnr,
       .__reserved = {0, 0, 0, 0, 0, 0, 0, 0}};
   strncpy((char*)loopconfig.info.lo_file_name, file, LO_NAME_SIZE - 1);
   if (asprintf(loopdev, "/dev/loop%ld", devnr) < 0)
-    return errno;
+    return -1;
 
   autoclose const int loopfd = open(*loopdev, O_RDWR | O_CLOEXEC);
   if (loopfd < 0) {
@@ -484,95 +400,55 @@ static inline void start_udev(void) {
                  "--subsystem-match=nvme");
 }
 
-static inline char* get_bootfs(const char* cmdline) {
-  char* bootfs = find_conf_key(cmdline, "initoverlayfs.bootfs");
-  if (!bootfs)
-    return NULL;
+static inline int convert_bootfs(conf* c) {
+  if (!c->bootfs)
+    return -4;
 
-  const char* token = strtok(bootfs, "=");
+  const char* token = strtok(c->bootfs, "=");
   autofree char* bootfs_tmp = 0;
   if (!strcmp(token, "LABEL")) {
     token = strtok(NULL, "=");
     if (asprintf(&bootfs_tmp, "/dev/disk/by-label/%s", token) < 0)
-      return NULL;
+      return -1;
 
-    SWAP(bootfs, bootfs_tmp);
+    SWAP(c->bootfs_scoped, bootfs_tmp);
+    c->bootfs = c->bootfs_scoped;
+    return 0;
   } else if (!strcmp(token, "UUID")) {
     token = strtok(NULL, "=");
     if (asprintf(&bootfs_tmp, "/dev/disk/by-uuid/%s", token) < 0)
-      return NULL;
+      return -2;
 
-    SWAP(bootfs, bootfs_tmp);
+    SWAP(c->bootfs_scoped, bootfs_tmp);
+    c->bootfs = c->bootfs_scoped;
+    return 0;
   }
 
-  printd("find_conf_key(\"%s\", \"bootfs\") = \"%s\"\n",
-         cmdline ? cmdline : "(nil)", bootfs ? bootfs : "(nil)");
+  printd("convert_bootfs(%p)\n", c);
 
-  return bootfs;
+  return -3;
 }
 
-static inline void get_cmdline_args(char** bootfs, char** bootfstype) {
-  autofree char* cmdline = read_conf("/proc/cmdline");
-  printd("read_conf(\"%s\") = \"%s\"\n", "/proc/cmdline",
-         cmdline ? cmdline : "(nil)");
-  *bootfs = get_bootfs(cmdline);
-  *bootfstype = find_conf_key(cmdline, "initoverlayfs.bootfstype");
-}
-
-static inline int get_conf_args(char** fs, char** fstype) {
-  // Other than initoverlayfs.bootfs and initoverlay.bootfstype, put all other
-  // configuration in here if possible to avoid polluting kernel cmdline.
-  autofree char* conf = read_conf("/etc/initoverlayfs.conf");
-  printd("read_conf(\"%s\") = \"%s\"\n", "/etc/initoverlayfs.conf",
-         conf ? conf : "(nil)");
-  if (conf) {
-    autofree char* fs_tmp = find_conf_key(conf, "fs");
-
-    if (!fs_tmp) {
-      print("return 1;\n");
-      return 1;  // fatal error, something is drastically wrong
-    }
-
-    *fs = (char*)malloc(sizeof("/boot") + strlen(fs_tmp));
-    if (!*fs)
-      return 2;  // fatal error, something is drastically wrong if realloc fails
-
-    strcpy(*fs, "/boot");
-    strcpy(*fs + sizeof("/boot") - 1, fs_tmp);
-
-    printd("strcpy(\"%s\", \"/boot\")\n", *fs ? *fs : "(nil)");
-
-    *fstype = find_conf_key(conf, "fstype");
-    printd("find_conf_key(\"%s\", \"fstype\") = \"%s\"\n",
-           conf ? conf : "(nil)", *fstype ? *fstype : "(nil)");
-  }
-
-  return 0;
-}
-
-static inline void mounts(const char* bootfs,
-                          const char* bootfstype,
-                          const char* fs,
-                          const char* fstype) {
-  if (!bootfs)
+static inline void mounts(const conf* c) {
+  if (!c->bootfs)
     return;
 
-  if (mount(bootfs, "/boot", bootfstype, 0, NULL))
+  if (mount(c->bootfs, "/boot", c->bootfstype, 0, NULL))
     print(
         "mount(\"%s\", \"/boot\", \"%s\", 0, NULL) "
         "%d (%s)\n",
-        bootfs, bootfstype, errno, strerror(errno));
+        c->bootfs, c->bootfstype, errno, strerror(errno));
 
   autofree char* dev_loop = 0;
-  if (fs && losetup(&dev_loop, fs))
-    print("losetup(\"%s\", \"%s\") %d (%s)\n", dev_loop, fs, errno,
+  if (c->fs && losetup(&dev_loop, c->fs))
+    print("losetup(\"%s\", \"%s\") %d (%s)\n", dev_loop, c->fs, errno,
           strerror(errno));
 
-  if (mount(dev_loop, "/initrofs", fstype, MS_RDONLY, NULL))
+  if (mount(dev_loop, "/initrofs", c->fstype, MS_RDONLY, NULL))
     print(
         "mount(\"%s\", \"/initrofs\", \"%s\", MS_RDONLY, NULL) "
         "%d (%s)\n",
-        dev_loop, fstype, errno, strerror(errno));
+        dev_loop, c->fstype, errno, strerror(errno));
 
   if (mount("overlay", "/initoverlayfs", "overlay", 0,
             "redirect_dir=on,lowerdir=/initrofs,upperdir=/overlay/"
@@ -583,11 +459,11 @@ static inline void mounts(const char* bootfs,
         "upper,workdir=/overlay/work\") %d (%s)\n",
         errno, strerror(errno));
 
-  if (mount("/boot", "/initoverlayfs/boot", bootfstype, MS_MOVE, NULL))
+  if (mount("/boot", "/initoverlayfs/boot", c->bootfstype, MS_MOVE, NULL))
     print(
         "mount(\"/boot\", \"/initoverlayfs/boot\", \"%s\", MS_MOVE, NULL) "
         "%d (%s)\n",
-        bootfstype, errno, strerror(errno));
+        c->bootfstype, errno, strerror(errno));
 }
 
 int main(void) {
@@ -595,23 +471,23 @@ int main(void) {
   autofclose FILE* kmsg_f_scoped = log_open_kmsg();
   kmsg_f = kmsg_f_scoped;
   start_udev();
-  autofree char* bootfs = NULL;
-  autofree char* bootfstype = NULL;
-  get_cmdline_args(&bootfs, &bootfstype);
-
-  autofree char* fs = NULL;
-  autofree char* fstype = NULL;
-  const int ret = get_conf_args(&fs, &fstype);
-  if (ret)
-    return ret;
-
+  autofree_conf conf conf = {.bootfs = 0,
+                             .bootfstype = 0,
+                             .fs = 0,
+                             .fstype = 0,
+                             .bootfs_scoped = 0,
+                             .bootfstype_scoped = 0,
+                             .fs_scoped = 0,
+                             .fstype_scoped = 0};
+  read_conf("/etc/initoverlayfs.conf", &conf);
+  convert_bootfs(&conf);
   pid_t pid;
   fork_exec_absolute_no_wait(pid, "/usr/sbin/modprobe", "loop");
-  fork_exec_path("udevadm", "wait", bootfs);
+  fork_exec_path("udevadm", "wait", conf.bootfs);
   waitpid(pid, 0, 0);
   errno = 0;
 
-  mounts(bootfs, bootfstype, fs, fstype);
+  mounts(&conf);
   if (switchroot("/initoverlayfs")) {
     print("switchroot(\"/initoverlayfs\") %d (%s)\n", errno, strerror(errno));
     return -1;
