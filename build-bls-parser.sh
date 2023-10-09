@@ -2,8 +2,6 @@
 
 set -ex
 
-clang++ -o a -O3 -pedantic -Wno-gnu-conditional-omitted-operand -Wall -Wextra -Werror -Wno-language-extension-token -Wno-deprecated -std=c++20 bls-parser.c &
-g++ -o b -O0 -ggdb -Wno-gnu-conditional-omitted-operand -Wall -Wextra -Werror -Wno-language-extension-token -std=c++20 bls-parser.c &
 clang -o c -O3 -pedantic -Wno-gnu-conditional-omitted-operand -Wall -Wextra -Werror -Wno-language-extension-token bls-parser.c &
 
 if [ -e /usr/lib/rpm/redhat/redhat-hardened-cc1 ]; then
