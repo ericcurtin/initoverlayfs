@@ -330,14 +330,11 @@ static inline int switchroot(const char* newroot) {
   /*  Don't try to unmount the old "/", there's no way to do it. */
   const char* umounts[] = {"/dev", "/proc", "/sys", "/run", NULL};
   struct stat newroot_stat, oldroot_stat, sb;
-  memset(&newroot_stat, 0, sizeof(newroot_stat));
-  memset(&oldroot_stat, 0, sizeof(oldroot_stat));
-  memset(&sb, 0, sizeof(sb));
   if (stat_oldroot_newroot(newroot, &newroot_stat, &oldroot_stat))
     return -1;
 
-  for (int i = 0; umounts[i]; ++i) {
-    autofree char* newmount = 0;
+  for (int i = 0; umounts[i] != NULL; ++i) {
+    autofree char* newmount;
     if (asprintf(&newmount, "%s%s", newroot, umounts[i]) < 0) {
       print(
           "asprintf(%p, \"%%s%%s\", \"%s\", \"%s\") MS_NODEV, NULL) %d (%s)\n",
@@ -366,7 +363,7 @@ static inline int switchroot(const char* newroot) {
   return switchroot_move(newroot);
 }
 
-static inline int mount_proc_sys_dev() {
+static inline int mount_proc_sys_dev(void) {
   if (mount("proc", "/proc", "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL)) {
     print(
         "mount(\"proc\", \"/proc\", \"proc\", MS_NOSUID | MS_NOEXEC | "
@@ -470,7 +467,6 @@ static inline void mounts(const conf* c) {
 }
 
 int main(void) {
-  errno = 0;
   mount_proc_sys_dev();
   autofclose FILE* kmsg_f_scoped = log_open_kmsg();
   kmsg_f = kmsg_f_scoped;
@@ -479,7 +475,7 @@ int main(void) {
       .bootfs = {0, 0}, .bootfstype = {0, 0}, .fs = {0, 0}, .fstype = {0, 0}};
   read_conf("/etc/initoverlayfs.conf", &conf);
   convert_bootfs(&conf);
-  pid_t pid = 0;
+  pid_t pid;
   fork_exec_absolute_no_wait(pid, "/usr/sbin/modprobe", "loop");
   fork_exec_path("udevadm", "wait", conf.bootfs.val);
   waitpid(pid, 0, 0);
