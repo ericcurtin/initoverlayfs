@@ -488,7 +488,7 @@ int main(void) {
   mounts(&conf);
   if (switchroot("/initoverlayfs")) {
     print("switchroot(\"/initoverlayfs\") %d (%s)\n", errno, strerror(errno));
-    return -1;
+    return 0;
   }
 
   exec_absolute_path("/sbin/init");
@@ -496,5 +496,5 @@ int main(void) {
   exec_absolute_path("/bin/init");
   exec_absolute_path("/bin/sh");
 
-  return errno;
+  return 0;
 }

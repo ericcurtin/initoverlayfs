@@ -20,6 +20,7 @@ Recommends: erofs-utils
 %setup -q -n %{name}-%{version}
 
 %build
+RPM_OPT_FLAGS="${RPM_OPT_FLAGS/-flto=auto /}"
 gcc ${RPM_OPT_FLAGS} pre-init.c -o pre-init
 
 %install
