@@ -1,5 +1,5 @@
 #include "pre-init.h"
-#include "bls-parser.h"
+#include "config-parser.h"
 #include <assert.h>
 #include <dirent.h>
 #include <err.h>
