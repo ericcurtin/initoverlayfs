@@ -53,5 +53,5 @@ if [ ! -e "/boot/vmlinu*" ]; then
   no_kern="--no-kernel"
 fi
 
-dracut -f $no_kern -M -m "kernel-modules udev-rules initoverlayfs" -o "bash systemd systemd-initrd i18n kernel-modules-extra rootfs-block dracut-systemd usrmount base fs-lib microcode_ctl-fw_dir_override shutdown"
+dracut -f $no_kern -M -m "kernel-modules udev-rules initoverlayfs" -o "bash systemd systemd-initrd i18n kernel-modules-extra rootfs-block dracut-systemd usrmount base fs-lib microcode_ctl-fw_dir_override shutdown nss-softokn"
 
