@@ -405,7 +405,7 @@ static inline void start_udev(void) {
 }
 
 static inline int convert_bootfs(conf* c) {
-  if (!c->bootfs.val)
+  if (!c->bootfs.val || !c->bootfs.val[0])
     return -4;
 
   const char* token = strtok(c->bootfs.val, "=");
