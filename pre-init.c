@@ -475,16 +475,17 @@ int main(void) {
   mount_proc_sys_dev();
   autofclose FILE* kmsg_f_scoped = log_open_kmsg();
   kmsg_f = kmsg_f_scoped;
-  fork_exec_absolute("/lib/systemd/systemd-udevd", "--daemon");
+  pid_t pid;
+  fork_exec_absolute_no_wait(pid, "/lib/systemd/systemd-udevd", "--daemon");
   autofree_conf conf conf = {.bootfs = {0, 0},
                              .bootfstype = {0, 0},
                              .fs = {0, 0},
                              .fstype = {0, 0},
                              .udev_trigger = {0, 0}};
   read_conf("/etc/initoverlayfs.conf", &conf);
+  waitpid(pid, 0, 0);
   udev_trigger(conf.udev_trigger.val);
   convert_bootfs(&conf);
-  pid_t pid;
   fork_exec_absolute_no_wait(pid, "/usr/sbin/modprobe", "loop");
   fork_exec_path("udevadm", "wait", conf.bootfs.val);
   waitpid(pid, 0, 0);
