@@ -15,7 +15,6 @@
 #define autofree_conf __attribute__((cleanup(cleanup_free_conf)))
 #define autoclose __attribute__((cleanup(cleanup_close)))
 #define autofclose __attribute__((cleanup(cleanup_fclose)))
-#define autova_end __attribute__((cleanup(cleanup_va_end)))
 
 #ifdef __cplusplus
 #define typeof decltype
@@ -66,6 +65,3 @@ static inline void cleanup_fclose(FILE** stream) {
     fclose(*stream);
 }
 
-static inline void cleanup_va_end(va_list* args) {
-  va_end(*args);
-}
