@@ -22,6 +22,8 @@ static inline void set_conf_pick(conf* c, str* line) {
                               .len = sizeof("bootfstype") - 1};
   const str fs_str = {.c_str = "fs", .len = sizeof("fs") - 1};
   const str fstype_str = {.c_str = "fstype", .len = sizeof("fstype") - 1};
+  const str udev_trigger_str = {.c_str = "udev_trigger",
+                                .len = sizeof("udev_trigger") - 1};
   if (is_line_key(line, &bootfs_str))
     set_conf(&c->bootfs, line, bootfs_str.len);
   else if (is_line_key(line, &bootfstype_str))
@@ -30,6 +32,8 @@ static inline void set_conf_pick(conf* c, str* line) {
     set_conf(&c->fs, line, fs_str.len);
   else if (is_line_key(line, &fstype_str))
     set_conf(&c->fstype, line, fstype_str.len);
+  else if (is_line_key(line, &udev_trigger_str))
+    set_conf(&c->udev_trigger, line, udev_trigger_str.len);
 }
 
 static inline char* read_conf(const char* file, conf* c) {

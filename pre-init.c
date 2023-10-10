@@ -256,18 +256,19 @@ done:
 }
 
 static inline int move_chroot_chdir(const char* newroot) {
+  printd("move_chroot_chdir(\"%s\")\n", newroot);
   if (mount(newroot, "/", NULL, MS_MOVE, NULL) < 0) {
-    print("failed to mount moving %s to /", newroot);
+    print("failed to mount moving %s to /\n", newroot);
     return -1;
   }
 
   if (chroot(".")) {
-    print("failed to change root");
+    print("failed to change root\n");
     return -1;
   }
 
   if (chdir("/")) {
-    print("cannot change directory to %s", "/");
+    print("cannot change directory to %s\n", "/");
     return -1;
   }
 
@@ -396,12 +397,12 @@ static inline int mount_proc_sys_dev(void) {
   return 0;
 }
 
-static inline void start_udev(void) {
-  fork_exec_absolute("/lib/systemd/systemd-udevd", "--daemon");
-  fork_exec_path("udevadm", "trigger", "--type=devices", "--action=add",
-                 "--subsystem-match=module", "--subsystem-match=block",
-                 "--subsystem-match=virtio", "--subsystem-match=pci",
-                 "--subsystem-match=nvme");
+static inline void udev_trigger(const char* udev_trigger) {
+  if (!udev_trigger)
+    fork_exec_path("udevadm", "trigger", "--type=devices", "--action=add",
+                   "--subsystem-match=module", "--subsystem-match=block",
+                   "--subsystem-match=virtio", "--subsystem-match=pci",
+                   "--subsystem-match=nvme");
 }
 
 static inline int convert_bootfs(conf* c) {
@@ -474,10 +475,14 @@ int main(void) {
   mount_proc_sys_dev();
   autofclose FILE* kmsg_f_scoped = log_open_kmsg();
   kmsg_f = kmsg_f_scoped;
-  start_udev();
-  autofree_conf conf conf = {
-      .bootfs = {0, 0}, .bootfstype = {0, 0}, .fs = {0, 0}, .fstype = {0, 0}};
+  fork_exec_absolute("/lib/systemd/systemd-udevd", "--daemon");
+  autofree_conf conf conf = {.bootfs = {0, 0},
+                             .bootfstype = {0, 0},
+                             .fs = {0, 0},
+                             .fstype = {0, 0},
+                             .udev_trigger = {0, 0}};
   read_conf("/etc/initoverlayfs.conf", &conf);
+  udev_trigger(conf.udev_trigger.val);
   convert_bootfs(&conf);
   pid_t pid;
   fork_exec_absolute_no_wait(pid, "/usr/sbin/modprobe", "loop");

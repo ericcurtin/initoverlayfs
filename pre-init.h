@@ -37,6 +37,7 @@ typedef struct conf {
   pair bootfstype;
   pair fs;
   pair fstype;
+  pair udev_trigger;
 } conf;
 
 typedef struct str {
@@ -49,6 +50,7 @@ static inline void cleanup_free_conf(conf* p) {
   free(p->bootfstype.scoped);
   free(p->fs.scoped);
   free(p->fstype.scoped);
+  free(p->udev_trigger.scoped);
 }
 
 static inline void cleanup_free(void* p) {
