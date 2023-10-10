@@ -45,4 +45,3 @@ static inline char* read_conf(const char* file, conf* c) {
 
   return NULL;
 }
-

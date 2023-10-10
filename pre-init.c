@@ -1,5 +1,4 @@
 #include "pre-init.h"
-#include "config-parser.h"
 #include <assert.h>
 #include <dirent.h>
 #include <err.h>
@@ -16,6 +15,7 @@
 #include <sys/syscall.h>
 #include <sys/vfs.h>
 #include <sys/wait.h>
+#include "config-parser.h"
 
 #define fork_exec_absolute_no_wait(pid, exe, ...)            \
   do {                                                       \

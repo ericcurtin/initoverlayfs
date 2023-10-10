@@ -64,4 +64,3 @@ static inline void cleanup_fclose(FILE** stream) {
   if (*stream)
     fclose(*stream);
 }
-
