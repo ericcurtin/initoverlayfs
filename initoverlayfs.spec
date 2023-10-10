@@ -8,7 +8,6 @@ URL:           https://github.com/ericcurtin/initoverlayfs
 Source0:       %{url}/archive/%{version}/%{name}-%{version}.tar.gz
 
 BuildRequires: gcc
-Recommends: grubby
 Recommends: erofs-utils
 
 %global debug_package %{nil}
