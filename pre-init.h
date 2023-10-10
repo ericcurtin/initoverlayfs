@@ -20,7 +20,7 @@
 #define typeof decltype
 #endif
 
-#define SWAP(a, b)      \
+#define swap(a, b)      \
   do {                  \
     typeof(a) temp = a; \
     a = b;              \

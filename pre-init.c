@@ -415,7 +415,7 @@ static inline int convert_bootfs(conf* c) {
     if (asprintf(&bootfs_tmp, "/dev/disk/by-label/%s", token) < 0)
       return -1;
 
-    SWAP(c->bootfs.scoped, bootfs_tmp);
+    swap(c->bootfs.scoped, bootfs_tmp);
     c->bootfs.val = c->bootfs.scoped;
     return 0;
   } else if (!strcmp(token, "UUID")) {
@@ -423,7 +423,7 @@ static inline int convert_bootfs(conf* c) {
     if (asprintf(&bootfs_tmp, "/dev/disk/by-uuid/%s", token) < 0)
       return -2;
 
-    SWAP(c->bootfs.scoped, bootfs_tmp);
+    swap(c->bootfs.scoped, bootfs_tmp);
     c->bootfs.val = c->bootfs.scoped;
     return 0;
   }

@@ -13,7 +13,7 @@ static inline void set_conf(pair* conf, str* line, const size_t key_len) {
     ;
   line->c_str[i - 1] = 0;
 
-  SWAP(conf->scoped, line->c_str);
+  swap(conf->scoped, line->c_str);
 }
 
 static inline void set_conf_pick(conf* c, str* line) {
