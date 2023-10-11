@@ -521,8 +521,9 @@ static inline char** cmd_to_argv(char* cmd) {
   int i = 0;
   size_t j = 0;
   for (; cmd[i]; ++j) {
-    for (; isspace(cmd[i]); ++i)
-      ;
+    while (isspace(cmd[i]))
+      ++i;
+
     if (j >= size) {
       size *= 2;
       char** tmp_ptr = (char**)realloc(argv, size * sizeof(char*));
@@ -534,8 +535,9 @@ static inline char** cmd_to_argv(char* cmd) {
     }
 
     argv[j] = cmd + i;
-    for (; !isspace(cmd[i]); ++i)
-      ;
+    while (!isspace(cmd[i]))
+      ++i;
+
     cmd[i] = 0;
     ++i;
   }
