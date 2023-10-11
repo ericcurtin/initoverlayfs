@@ -509,6 +509,17 @@ static inline void mounts(const conf* c) {
         c->bootfstype.val, errno, strerror(errno));
 }
 
+static inline size_t double_array(char*** ptr, size_t size) {
+  size *= 2;
+  char** tmp_ptr = (char**)realloc(*ptr, size * sizeof(char*));
+  if (!tmp_ptr) {
+    return 0;
+  }
+
+  *ptr = tmp_ptr;
+  return size;
+}
+
 static inline char** cmd_to_argv(char* cmd) {
   if (!cmd)
     return 0;
@@ -525,13 +536,9 @@ static inline char** cmd_to_argv(char* cmd) {
       ++i;
 
     if (j >= size) {
-      size *= 2;
-      char** tmp_ptr = (char**)realloc(argv, size * sizeof(char*));
-      if (!tmp_ptr) {
+      size = double_array(&argv, size);
+      if (!size)
         return argv;
-      }
-
-      argv = tmp_ptr;
     }
 
     argv[j] = cmd + i;
