@@ -17,32 +17,15 @@
 #include <sys/wait.h>
 #include "config-parser.h"
 
-#define fork_exec_absolute_no_wait(pid, exe, ...)            \
-  do {                                                       \
-    printd("fork_exec_absolute_no_wait(\"" exe "\")\n");     \
-    pid = fork();                                            \
-    if (pid == -1) {                                         \
-      print("fail fork_exec_absolute_no_wait\n");            \
-      break;                                                 \
-    } else if (pid > 0) {                                    \
-      printd("forked %d fork_exec_absolute_no_wait\n", pid); \
-      break;                                                 \
-    }                                                        \
-                                                             \
-    execl(exe, exe, __VA_ARGS__, (char*)NULL);               \
-    exit(errno);                                             \
-  } while (0)
-
-#define fork_exec_absolute(exe, ...)                 \
+#define fork_execl_no_wait(pid, exe, ...)            \
   do {                                               \
-    printd("fork_exec_absolute(\"" exe "\")\n");     \
-    const pid_t pid = fork();                        \
+    printd("fork_execl_no_wait(\"" exe "\")\n");     \
+    pid = fork();                                    \
     if (pid == -1) {                                 \
-      print("fail exec_absolute\n");                 \
+      print("fail fork_execl_no_wait\n");            \
       break;                                         \
     } else if (pid > 0) {                            \
-      printd("forked %d fork_exec_absolute\n", pid); \
-      waitpid(pid, 0, 0);                            \
+      printd("forked %d fork_execl_no_wait\n", pid); \
       break;                                         \
     }                                                \
                                                      \
@@ -50,53 +33,70 @@
     exit(errno);                                     \
   } while (0)
 
-#define fork_exec_path(exe, ...)                 \
-  do {                                           \
-    printd("fork_exec_path(\"" exe "\")\n");     \
-    const pid_t pid = fork();                    \
-    if (pid == -1) {                             \
-      print("fail exec_path\n");                 \
-      break;                                     \
-    } else if (pid > 0) {                        \
-      printd("forked %d fork_exec_path\n", pid); \
-      waitpid(pid, 0, 0);                        \
-      break;                                     \
-    }                                            \
-                                                 \
-    execlp(exe, exe, __VA_ARGS__, (char*)NULL);  \
-    exit(errno);                                 \
+#define fork_execl(exe, ...)                   \
+  do {                                         \
+    printd("fork_execl(\"" exe "\")\n");       \
+    const pid_t pid = fork();                  \
+    if (pid == -1) {                           \
+      print("fail fork_execl\n");              \
+      break;                                   \
+    } else if (pid > 0) {                      \
+      printd("forked %d fork_execl\n", pid);   \
+      waitpid(pid, 0, 0);                      \
+      break;                                   \
+    }                                          \
+                                               \
+    execl(exe, exe, __VA_ARGS__, (char*)NULL); \
+    exit(errno);                               \
   } while (0)
 
-#define fork_execl_path_no_wait(pid, exe, ...)            \
-  do {                                                    \
-    printd("fork_execl_path_no_wait(\"" exe "\")\n");     \
-    pid = fork();                                         \
-    if (pid == -1) {                                      \
-      print("fail execl_path_no_wait\n");                 \
-      break;                                              \
-    } else if (pid > 0) {                                 \
-      printd("forked %d fork_execl_path_no_wait\n", pid); \
-      break;                                              \
-    }                                                     \
-                                                          \
-    execlp(exe, exe, __VA_ARGS__, (char*)NULL);           \
-    exit(errno);                                          \
+#define fork_execlp(exe, ...)                   \
+  do {                                          \
+    printd("fork_execlp(\"" exe "\")\n");       \
+    const pid_t pid = fork();                   \
+    if (pid == -1) {                            \
+      print("fail fork_execlp\n");              \
+      break;                                    \
+    } else if (pid > 0) {                       \
+      printd("forked %d fork_execlp\n", pid);   \
+      waitpid(pid, 0, 0);                       \
+      break;                                    \
+    }                                           \
+                                                \
+    execlp(exe, exe, __VA_ARGS__, (char*)NULL); \
+    exit(errno);                                \
   } while (0)
 
-#define fork_execv_path_no_wait(pid, exe)                 \
-  do {                                                    \
-    printd("fork_execv_path_no_wait(%p)\n", (void*)exe);  \
-    pid = fork();                                         \
-    if (pid == -1) {                                      \
-      print("fail execv_path_no_wait\n");                 \
-      break;                                              \
-    } else if (pid > 0) {                                 \
-      printd("forked %d fork_execv_path_no_wait\n", pid); \
-      break;                                              \
-    }                                                     \
-                                                          \
-    execvp(exe[0], exe);                                  \
-    exit(errno);                                          \
+#define fork_execlp_no_wait(pid, exe, ...)            \
+  do {                                                \
+    printd("fork_execlp_no_wait(\"" exe "\")\n");     \
+    pid = fork();                                     \
+    if (pid == -1) {                                  \
+      print("fail fork_execlp_no_wait\n");            \
+      break;                                          \
+    } else if (pid > 0) {                             \
+      printd("forked %d fork_execlp_no_wait\n", pid); \
+      break;                                          \
+    }                                                 \
+                                                      \
+    execlp(exe, exe, __VA_ARGS__, (char*)NULL);       \
+    exit(errno);                                      \
+  } while (0)
+
+#define fork_execvp_no_wait(pid, exe)                 \
+  do {                                                \
+    printd("fork_execvp_no_wait(%p)\n", (void*)exe);  \
+    pid = fork();                                     \
+    if (pid == -1) {                                  \
+      print("fail execvp_no_wait\n");                 \
+      break;                                          \
+    } else if (pid > 0) {                             \
+      printd("forked %d fork_execvp_no_wait\n", pid); \
+      break;                                          \
+    }                                                 \
+                                                      \
+    execvp(exe[0], exe);                              \
+    exit(errno);                                      \
   } while (0)
 
 static FILE* kmsg_f = 0;
@@ -432,14 +432,14 @@ static inline int mount_proc_sys_dev(void) {
 static inline pid_t udev_trigger(char** udev_trigger) {
   pid_t pid;
   if (udev_trigger) {
-    fork_execv_path_no_wait(pid, udev_trigger);
+    fork_execvp_no_wait(pid, udev_trigger);
     return pid;
   }
 
-  fork_execl_path_no_wait(pid, "udevadm", "trigger", "--type=devices",
-                          "--action=add", "--subsystem-match=module",
-                          "--subsystem-match=block", "--subsystem-match=virtio",
-                          "--subsystem-match=pci", "--subsystem-match=nvme");
+  fork_execlp_no_wait(pid, "udevadm", "trigger", "--type=devices",
+                      "--action=add", "--subsystem-match=module",
+                      "--subsystem-match=block", "--subsystem-match=virtio",
+                      "--subsystem-match=pci", "--subsystem-match=nvme");
   return pid;
 }
 
@@ -549,7 +549,7 @@ int main(void) {
   autofclose FILE* kmsg_f_scoped = log_open_kmsg();
   kmsg_f = kmsg_f_scoped;
   pid_t pid;
-  fork_exec_absolute_no_wait(pid, "/lib/systemd/systemd-udevd", "--daemon");
+  fork_execl_no_wait(pid, "/lib/systemd/systemd-udevd", "--daemon");
   autofree_conf conf conf = {.bootfs = {0, 0},
                              .bootfstype = {0, 0},
                              .fs = {0, 0},
@@ -560,10 +560,10 @@ int main(void) {
   waitpid(pid, 0, 0);
   const pid_t udev_trigger_pid = udev_trigger(udev_argv);
   convert_bootfs(&conf);
-  fork_exec_absolute_no_wait(pid, "/usr/sbin/modprobe", "loop");
+  fork_execl_no_wait(pid, "/usr/sbin/modprobe", "loop");
   waitpid(udev_trigger_pid, 0, 0);
   waitpid(pid, 0, 0);
-  fork_exec_path("udevadm", "wait", conf.bootfs.val);
+  fork_execlp("udevadm", "wait", conf.bootfs.val);
   errno = 0;
 
   mounts(&conf);
