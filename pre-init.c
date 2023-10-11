@@ -67,6 +67,38 @@
     exit(errno);                                 \
   } while (0)
 
+#define fork_execl_path_no_wait(pid, exe, ...)            \
+  do {                                                    \
+    printd("fork_execl_path_no_wait(\"" exe "\")\n");     \
+    pid = fork();                                         \
+    if (pid == -1) {                                      \
+      print("fail execl_path_no_wait\n");                 \
+      break;                                              \
+    } else if (pid > 0) {                                 \
+      printd("forked %d fork_execl_path_no_wait\n", pid); \
+      break;                                              \
+    }                                                     \
+                                                          \
+    execlp(exe, exe, __VA_ARGS__, (char*)NULL);           \
+    exit(errno);                                          \
+  } while (0)
+
+#define fork_execv_path_no_wait(pid, exe)                 \
+  do {                                                    \
+    printd("fork_execv_path_no_wait(%p)\n", (void*)exe);  \
+    pid = fork();                                         \
+    if (pid == -1) {                                      \
+      print("fail execv_path_no_wait\n");                 \
+      break;                                              \
+    } else if (pid > 0) {                                 \
+      printd("forked %d fork_execv_path_no_wait\n", pid); \
+      break;                                              \
+    }                                                     \
+                                                          \
+    execvp(exe[0], exe);                                  \
+    exit(errno);                                          \
+  } while (0)
+
 static FILE* kmsg_f = 0;
 
 #define print(...)                  \
@@ -397,12 +429,18 @@ static inline int mount_proc_sys_dev(void) {
   return 0;
 }
 
-static inline void udev_trigger(const char* udev_trigger) {
-  if (!udev_trigger)
-    fork_exec_path("udevadm", "trigger", "--type=devices", "--action=add",
-                   "--subsystem-match=module", "--subsystem-match=block",
-                   "--subsystem-match=virtio", "--subsystem-match=pci",
-                   "--subsystem-match=nvme");
+static inline pid_t udev_trigger(char** udev_trigger) {
+  pid_t pid;
+  if (udev_trigger) {
+    fork_execv_path_no_wait(pid, udev_trigger);
+    return pid;
+  }
+
+  fork_execl_path_no_wait(pid, "udevadm", "trigger", "--type=devices",
+                          "--action=add", "--subsystem-match=module",
+                          "--subsystem-match=block", "--subsystem-match=virtio",
+                          "--subsystem-match=pci", "--subsystem-match=nvme");
+  return pid;
 }
 
 static inline int convert_bootfs(conf* c) {
@@ -471,6 +509,41 @@ static inline void mounts(const conf* c) {
         c->bootfstype.val, errno, strerror(errno));
 }
 
+static inline char** cmd_to_argv(char* cmd) {
+  if (!cmd)
+    return 0;
+
+  size_t size = 16;
+  char** argv = (char**)malloc(size * sizeof(char*));
+  if (!argv)
+    return argv;
+
+  int i = 0;
+  size_t j = 0;
+  for (; cmd[i]; ++j) {
+    for (; isspace(cmd[i]); ++i)
+      ;
+    if (j >= size) {
+      size *= 2;
+      char** tmp_ptr = (char**)realloc(argv, size * sizeof(char*));
+      if (!tmp_ptr) {
+        return argv;
+      }
+
+      argv = tmp_ptr;
+    }
+
+    argv[j] = cmd + i;
+    for (; !isspace(cmd[i]); ++i)
+      ;
+    cmd[i] = 0;
+    ++i;
+  }
+
+  argv[j] = 0;
+  return argv;
+}
+
 int main(void) {
   mount_proc_sys_dev();
   autofclose FILE* kmsg_f_scoped = log_open_kmsg();
@@ -483,12 +556,14 @@ int main(void) {
                              .fstype = {0, 0},
                              .udev_trigger = {0, 0}};
   read_conf("/etc/initoverlayfs.conf", &conf);
+  autofree char** udev_argv = cmd_to_argv(conf.udev_trigger.val);
   waitpid(pid, 0, 0);
-  udev_trigger(conf.udev_trigger.val);
+  const pid_t udev_trigger_pid = udev_trigger(udev_argv);
   convert_bootfs(&conf);
   fork_exec_absolute_no_wait(pid, "/usr/sbin/modprobe", "loop");
-  fork_exec_path("udevadm", "wait", conf.bootfs.val);
+  waitpid(udev_trigger_pid, 0, 0);
   waitpid(pid, 0, 0);
+  fork_exec_path("udevadm", "wait", conf.bootfs.val);
   errno = 0;
 
   mounts(&conf);
