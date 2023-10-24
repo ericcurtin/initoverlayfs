@@ -1,4 +1,1 @@
-# initoverlayfs
-
-An initial scalable filesystem for Linux operating systems
-
+Archived, moved to https://github.com/containers/initoverlayfs
